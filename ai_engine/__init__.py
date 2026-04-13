@@ -51,5 +51,3 @@ if __name__ == "__main__":
     ai = CryptoPredictor()
     result = ai.predict(test_data)
     print(f"Result for Backend: {result}")
-
-    print("Git Test")
