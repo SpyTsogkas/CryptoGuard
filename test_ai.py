@@ -1,57 +1,39 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import r2_score
 from ai_engine import TrendPredictor
 
-def run_detailed_test():
-    # 1. Generate 50 days of synthetic data
+def run_test():
+    # 1. Create 50 days of OHLC data
     np.random.seed(42)
-    base_price = 60000
-    prices = []
+    data = []
+    curr = 60000
     for i in range(50):
-        # Create a trend with some randomness
-        base_price += 100 + np.random.normal(0, 300) 
-        prices.append(base_price)
+        o = curr + np.random.randint(-100, 100)
+        c = o + np.random.randint(-200, 300)
+        h = max(o, c) + 50
+        l = min(o, c) - 50
+        data.append([o, h, l, c])
+        curr = c
     
-    df = pd.DataFrame({'price': prices})
+    # We use 'close' instead of 'price' now!
+    df = pd.DataFrame(data, columns=['open', 'high', 'low', 'close'])
 
-    # 2. Initialize and Train
+    # 2. Run AI
     predictor = TrendPredictor()
-    predictor.train(df)
-
-    # 3. Get metrics for the numbers part
-    # We need to process features to get predictions for the whole set
-    processed_df = predictor._prepare_features(df)
-    feature_cols = ['RSI', 'Upper_Band', 'Lower_Band', 'price_yesterday', 'price_2_days_ago']
-    y_true = processed_df['price']
-    y_pred = predictor.model.predict(processed_df[feature_cols])
-
-    # --- CALCULATING NUMBERS ---
-    mae = predictor.mae_score
-    mape = (mae / y_true.mean()) * 100
-    r2 = r2_score(y_true, y_pred)
-    next_price = predictor.predict_next(df)
-    current_price = df['price'].iloc[-1]
-    change_pct = ((next_price - current_price) / current_price) * 100
-
-    # 4. Detailed Output
-    print("="*40)
-    print("📊 AI MODEL DETAILED PERFORMANCE")
-    print("="*40)
-    print(f"Total Data Points:    {len(df)} days")
-    print(f"Training Samples:     {len(processed_df)} (after indicators)")
-    print("-" * 40)
-    print(f"MAE (Avg. Error):     ${mae:.2f}")
-    print(f"MAPE (Rel. Error):    {mape:.2f}%")
-    print(f"R² Score (Fit):       {r2:.4f} (Best is 1.0)")
-    print("-" * 40)
-    print(f"Current Price:        ${current_price:.2f}")
-    print(f"AI Prediction:        ${next_price:.2f}")
-    print(f"Predicted Change:     {change_pct:+.2f}%")
-    
-    rating, color = predictor.get_accuracy_report(current_price)
-    print(f"Model Reliability:    {rating}")
-    print("="*40)
+    try:
+        predictor.train(df)
+        res = predictor.predict_future(df)
+        
+        print("\n" + "="*40)
+        print(f"💰 CURRENT PRICE: ${df['close'].iloc[-1]:,.2f}")
+        print(f"🎯 AI TARGET:    ${res['target_price']:,.2f}")
+        print(f"🕒 HORIZON:      {res['time_horizon']}")
+        print(f"🚦 SIGNAL:       {res['signal']}")
+        print(f"📏 ERROR (MAE):  ${res['mae']}")
+        print("="*40 + "\n")
+        
+    except Exception as e:
+        print(f"❌ Still getting error: {e}")
 
 if __name__ == "__main__":
-    run_detailed_test()
+    run_test()
