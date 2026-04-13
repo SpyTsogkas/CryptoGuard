@@ -1,53 +1,91 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error
 
-class CryptoPredictor:
+class TrendPredictor:
     def __init__(self):
-        self.model = LinearRegression()
-
-    def _calculate_volatility(self, prices):
-        """Υπολογίζει το ρίσκο βάσει τυπικής απόκλισης"""
-        returns = np.diff(prices) / prices[:-1]
-        volatility = np.std(returns)
-        if volatility < 0.02: return "Low"
-        if volatility < 0.05: return "Moderate"
-        return "High"
-
-    def predict(self, history_data):
         """
-        history_data: Λίστα με τιμές κλεισίματος (π.χ. τελευταίες 30 μέρες)
+        Initialize the AI Engine with a Random Forest Regressor.
+        Hyperparameters are tuned to prevent overfitting.
         """
-        df = pd.DataFrame(history_data, columns=['price'])
-        df['day'] = np.arange(len(df))
+        self.model = RandomForestRegressor(
+            n_estimators=200,    # Number of trees in the forest
+            max_depth=10,        # Maximum depth of each tree
+            min_samples_split=5, # Minimum samples required to split a node
+            random_state=42      # Ensures consistent results across runs
+        )
+        self.mae_score = 0.0
+
+    def _prepare_features(self, data: pd.DataFrame):
+        """
+        Feature Engineering: Convert raw prices into technical indicators.
+        """
+        df = data.copy()
         
-        # Εκπαίδευση 'on the fly' για την τάση των τελευταίων ημερών
-        X = df[['day']]
+        # 1. Momentum Indicator: RSI (Relative Strength Index)
+        # Measures the speed and change of price movements
+        delta = df['price'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss + 1e-9) # Avoid division by zero
+        df['RSI'] = 100 - (100 / (1 + rs))
+
+        # 2. Volatility Indicators: Bollinger Bands
+        # Standard deviation bands around a moving average
+        sma_20 = df['price'].rolling(window=20).mean()
+        std_20 = df['price'].rolling(window=20).std()
+        df['Upper_Band'] = sma_20 + (std_20 * 2)
+        df['Lower_Band'] = sma_20 - (std_20 * 2)
+
+        # 3. Memory Features: Lags
+        # Provides the model with knowledge of previous days' prices
+        df['price_yesterday'] = df['price'].shift(1)
+        df['price_2_days_ago'] = df['price'].shift(2)
+
+        # Drop rows with NaN values created by moving windows and lags
+        df = df.dropna()
+        return df
+
+    def train(self, data: pd.DataFrame):
+        """
+        Train the model using technical indicators and calculate MAE.
+        """
+        df = self._prepare_features(data)
+        
+        # Define features used for prediction
+        feature_cols = ['RSI', 'Upper_Band', 'Lower_Band', 'price_yesterday', 'price_2_days_ago']
+        X = df[feature_cols]
         y = df['price']
+        
+        # Training phase
         self.model.fit(X, y)
         
-        # Πρόβλεψη επόμενης ημέρας
-        next_day = np.array([[len(df)]])
-        prediction = self.model.predict(next_day)[0]
-        
-        # Λογική Τάσης
-        last_price = history_data[-1]
-        trend = "BULLISH" if prediction > last_price else "BEARISH"
-        
-        # Υπολογισμός Confidence (πολύ απλοποιημένο για αρχή)
-        confidence = round(self.model.score(X, y) * 100, 2)
-        
-        return {
-            "trend": trend,
-            "confidence": f"{confidence}%",
-            "risk": self._calculate_volatility(np.array(history_data)),
-            "predicted_price": round(prediction, 2)
-        }
+        # Calculate training error (Mean Absolute Error)
+        predictions = self.model.predict(X)
+        self.mae_score = mean_absolute_error(y, predictions)
 
-# Παράδειγμα χρήσης για δοκιμή
-if __name__ == "__main__":
-    # Dummy data: Τιμές Bitcoin που ανεβαίνουν
-    test_data = [60000, 60500, 61000, 60800, 62000, 62500, 63000]
-    ai = CryptoPredictor()
-    result = ai.predict(test_data)
-    print(f"Result for Backend: {result}")
+    def predict_next(self, last_data: pd.DataFrame) -> float:
+        """
+        Predict the price for the next day using the latest market data.
+        """
+        processed = self._prepare_features(last_data).tail(1)
+        feature_cols = ['RSI', 'Upper_Band', 'Lower_Band', 'price_yesterday', 'price_2_days_ago']
+        X_new = processed[feature_cols]
+        
+        prediction = self.model.predict(X_new)[0]
+        return float(prediction)
+
+    def get_accuracy_report(self, current_price: float):
+        """
+        Calculate relative error (MAPE) and return a human-friendly rating.
+        """
+        # Calculate Mean Absolute Percentage Error
+        mape = (self.mae_score / current_price) * 100
+        
+        if mape < 2.0:
+            return "High Reliability", "#22c55e"    # Green
+        elif mape < 5.0:
+            return "Medium Reliability", "#f59e0b"  # Orange
+        else:
+            return "Low Reliability", "#ef4444"     # Red
