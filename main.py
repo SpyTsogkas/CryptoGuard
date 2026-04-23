@@ -1,4 +1,7 @@
-from backend import DataFetcher, TrendPredictor
+from ai_engine import TrendPredictor
+from backend import DataFetcher
+from database import DataBaseManager
+from ui import ProfessionalDashboard
 
 def main():
     print("--- Starting Crypto-Guard Test ---")
