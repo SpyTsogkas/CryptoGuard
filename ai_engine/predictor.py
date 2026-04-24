@@ -86,24 +86,28 @@ class TrendPredictor:
         self.is_trained = True
 
     def predict_future(self, current_data: pd.DataFrame):
-        """Generates target price, signal type, and time horizon."""
         df = self._calculate_indicators(current_data).tail(1)
         features = ['EMA_10', 'SMA_20', 'RSI', 'ATR', 'is_hammer', 'is_bullish_engulfing']
         
         X_latest = self.scaler.transform(df[features])
         prediction = self.model.predict(X_latest)[0]
+        current_price = df['close'].values[0]
+        latest_atr = df['ATR'].values[0]
+
+        # Estimated Time Calculation (Volatility-Adjusted)
+        price_diff = abs(prediction - current_price)
+        # If the difference is 100$ and the volitality (ATR) is 50$ per day, then we want 2 days
+        # Add "the safe" (1e-9) to avoid devision by 0
+        est_days = price_diff / (latest_atr + 1e-9)
+        est_hours = round(est_days * 24)
         
-        # Logic for Signal & Horizon
-        signal = "NEUTRAL"
-        horizon = "1-2 Days"
-        
-        if df['is_hammer'].values[0] == 1 or df['is_bullish_engulfing'].values[0] == 1:
-            signal = "BULLISH (Pattern Detected)"
-            horizon = "3-5 Days"
+        # Logical Limitation (e.x from 1 to 120 hours)
+        est_hours = max(1, min(est_hours, 120))
 
         return {
             "target_price": round(float(prediction), 2),
-            "signal": signal,
-            "time_horizon": horizon,
+            "signal": "BULLISH" if df['is_hammer'].values[0] or df['is_bullish_engulfing'].values[0] else "NEUTRAL",
+            "time_horizon": f"{est_hours} Hours",
+            "estimated_hours": est_hours,
             "mae": round(self.mae_score, 2)
         }

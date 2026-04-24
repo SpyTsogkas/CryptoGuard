@@ -20,7 +20,7 @@ class DataBaseManager:
                     timestamp DATETIME, 
                     symbol TEXT,
                     actual_price REAL, 
-                    predicted_pride REAL, 
+                    predicted_price REAL, 
                     signal_type TEXT, 
                     time_horizon TEXT, 
                     mae_score REAL
