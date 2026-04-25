@@ -14,7 +14,7 @@ def run_integration_test():
     print(" 🛡️ CRYPTO-GUARD SYSTEM INTEGRATION TEST")
     print("="*50)
 
-    # 1. Initialization (Αρχικοποίηση όλων των συστημάτων)
+    # 1. Initialization (all the systems)
     try:
         api = DataFetcher()
         ai = TrendPredictor()
@@ -24,7 +24,7 @@ def run_integration_test():
         logging.error(f"Initialization Failed: {e}")
         return
 
-    # 2. Data Fetching (Λήψη πραγματικών δεδομένων)
+    # 2. Data Fetching (Download the real data)
     symbol = 'bitcoin'
     print(f"\n[STEP 1] Fetching live data for {symbol.upper()}...")
     df = api.get_data(symbol, days='30')
