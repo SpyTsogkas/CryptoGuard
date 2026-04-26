@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import logging
 import requests
-import time # Για αποφυγή rate limits
+import time 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_absolute_error
@@ -14,11 +14,11 @@ class DataFetcher:
         self.base_url = "https://api.coingecko.com/api/v3"
 
     def get_top_10_by_volume(self):
-        """Φέρνει δυναμικά τα 10 νομίσματα με το μεγαλύτερο Trading Volume (24h)."""
+        """Gets dynamicly the top 10 Cryptos with the biggest Trading Volume (24h)."""
         endpoint = f"{self.base_url}/coins/markets"
         params = {
             'vs_currency': 'usd',
-            'order': 'volume_desc', # Ταξινόμηση βάσει όγκου συναλλαγών
+            'order': 'volume_desc', # Sort by transaction volume
             'per_page': 10,
             'page': 1
         }
@@ -26,11 +26,11 @@ class DataFetcher:
             response = requests.get(endpoint, params=params)
             response.raise_for_status()
             data = response.json()
-            # Επιστρέφει μια λίστα με τα IDs (π.χ. ['bitcoin', 'ethereum', ...])
+            # Returns one list with the IDs (e.x. ['bitcoin', 'ethereum', ...])
             return [coin['id'] for coin in data]
         except Exception as e:
             logging.error(f"Error fetching top coins: {e}")
-            return ['bitcoin', 'ethereum', 'solana'] # Fallback λίστα
+            return ['bitcoin', 'ethereum', 'solana'] # Fallback list
 
     def get_data(self, symbol: str, days: str = '30') -> pd.DataFrame:
         endpoint = f"{self.base_url}/coins/{symbol.lower()}/ohlc"
@@ -47,7 +47,6 @@ class DataFetcher:
             logging.error(f"Error fetching {symbol}: {e}")
             return pd.DataFrame()
 
-# (Η κλάση TrendPredictor παραμένει ως είχε στον κώδικά σου)
 class TrendPredictor:
     def __init__(self):
         self.model = RandomForestRegressor(n_estimators=500, max_depth=12, random_state=42, n_jobs=-1)
@@ -102,13 +101,13 @@ class TrendPredictor:
             signal, horizon = "BULLISH (Pattern Detected)", "3-5 Days"
         return {"target_price": round(float(prediction), 2), "signal": signal, "time_horizon": horizon, "mae": round(self.mae_score, 2)}
 
-# --- Updated Testing Block για τα Top 10 Volume Coins ---
+# --- Updated Testing Block for the Top 10 Volume Coins ---
 if __name__ == "__main__":
     print("🚀 Εκκίνηση Ανάλυσης Top 10 Volume Cryptos...")
     api = DataFetcher()
     ai = TrendPredictor()
     
-    # Λήψη των 10 κορυφαίων
+    # Top 10 Cryptos Download
     top_10 = api.get_top_10_by_volume()
     
     for coin in top_10:
@@ -119,7 +118,7 @@ if __name__ == "__main__":
             ai.train(df)
             results = ai.predict_future(df)
             
-            # Υπολογισμός μεταβολής (%)
+            # Calculation of the Change (%)
             current_price = df['close'].iloc[-1]
             change = ((results['target_price'] - current_price) / current_price) * 100
             sign = "+" if change > 0 else ""

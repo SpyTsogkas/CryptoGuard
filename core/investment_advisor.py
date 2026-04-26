@@ -30,7 +30,7 @@ class InvestmentAdvisor:
         prediction = self.predictor.predict_future(df)
         current_price = df['close'].iloc[-1]
 
-        # --- ΝΕΑ ΓΡΑΜΜΗ ΥΠΟΛΟΓΙΣΜΟΥ ---
+        # --- NEW CALCULATION LINE ---
         change_pct = ((prediction['target_price'] - current_price) / current_price) * 100
 
         # 3. Save the result in the Databasae
@@ -61,7 +61,7 @@ class InvestmentAdvisor:
         price_diff_pct = ((target - current_price) / current_price) * 100
         
         # Signal and risk profile based logic
-        # --- 1. ΑΝΟΔΙΚΗ ΤΑΣΗ (BULLISH) ---
+        # --- 1. (BULLISH) ---
         if price_diff_pct > 0.5:
             if self.risk_profile == "Aggressive":
                 return (f"ΕΝΤΟΝΗ ΑΓΟΡΑ (Strong Buy). Αναμένεται άνοδος {price_diff_pct:.2f}% "
@@ -70,7 +70,7 @@ class InvestmentAdvisor:
                 return (f"ΠΡΟΣΕΚΤΙΚΗ ΑΓΟΡΑ. Εντοπίστηκε ανοδικό pattern. "
                         f"Προτεινόμενος ορίζοντας: {horizon}. Στόχος: ${target:,.2f}.")
 
-        # --- 2. ΚΑΘΟΔΙΚΗ ΤΑΣΗ (BEARISH) ---
+        # --- 2. (BEARISH) ---
         elif price_diff_pct < -0.5:
             if self.risk_profile == "Aggressive":
                 return (f"ΕΝΤΟΝΗ ΠΩΛΗΣΗ (Strong Sell / Short). Αναμένεται πτώση {abs(price_diff_pct):.2f}% "
@@ -79,11 +79,11 @@ class InvestmentAdvisor:
                 return (f"ΕΞΟΔΟΣ / ΠΩΛΗΣΗ. Εντοπίστηκε καθοδική τάση. Προστατέψτε το κεφάλαιό σας. "
                         f"Αναμονή υποχώρησης στα ${target:,.2f} πριν από νέα είσοδο.")
 
-        # --- 3. ΣΤΑΘΕΡΟΤΗΤΑ (NEUTRAL) ---
+        # --- 3. (NEUTRAL) ---
         elif abs(price_diff_pct) <= 0.5:
             return (f"ΔΙΑΤΗΡΗΣΗ ΘΕΣΗΣ (Hold). Η αγορά είναι σταθερή (μεταβολή {price_diff_pct:.2f}%). "
                     f"Αναμονή για τις επόμενες {horizon} για καθαρότερη τάση.")
         
-        # --- 4. ΓΕΝΙΚΗ ΟΥΔΕΤΕΡΟΤΗΤΑ ---
+        # --- 4. GENERAL NEUTRALITY ---
         else:
             return "Σύσταση: Ουδέτερη στάση (Neutral). Επανεκτίμηση της αγοράς σε 24 ώρες λόγω ασάφειας."
