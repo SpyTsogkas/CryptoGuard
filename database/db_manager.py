@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 class DataBaseManager:
-    def __init__(self, db_path = "database/crypto_guard.db"):
+    def __init__(self, db_path="database/crypto_guard.db"):
         self.db_path = db_path
         self._create_tables()
 
@@ -11,9 +11,8 @@ class DataBaseManager:
         return sqlite3.connect(self.db_path)
     
     def _create_tables(self):
-        """Creates tables for users and AI prediction history."""
         with self._connect() as conn:
-            # Table of the predictions history (Metrics Support)
+            # Predictions Table
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS prediction_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -27,22 +26,37 @@ class DataBaseManager:
                 )
             """)
 
-            # User Table (SRS/SDD)
+            # User table with password
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT UNIQUE,
+                    password TEXT,
                     risk_level TEXT
                 )
             """)
-
             conn.commit()
-        
+
+    # User System
+    def register_user(self, username, password, risk="Moderate"):
+        try:
+            with self._connect() as conn:
+                conn.execute("INSERT INTO users (username, password, risk_level) VALUES (?, ?, ?)", 
+                             (username, password, risk))
+                conn.commit()
+                return True
+        except sqlite3.IntegrityError:
+            return False # Existing Username
+
+    def authenticate_user(self, username, password):
+        with self._connect() as conn:
+            cursor = conn.execute("SELECT risk_level FROM users WHERE username = ? AND password = ?", 
+                                 (username, password))
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    # Predictions System
     def log_prediction(self, symbol, current_price, ai_output):
-        """
-        Saves the Quant-Pro AI results.
-        ai_output: dictionary {target_price, signal, time_horizon, mae}
-        """
         query = """
             INSERT INTO prediction_logs 
             (timestamp, symbol, actual_price, predicted_price, signal_type, time_horizon, mae_score)
@@ -50,17 +64,8 @@ class DataBaseManager:
         """
         with self._connect() as conn:
             conn.execute(query, (
-                datetime.now(),
-                symbol,
-                current_price,
-                ai_output['target_price'],
-                ai_output['signal'],
-                ai_output['time_horizon'],
-                ai_output['mae']
+                datetime.now(), symbol, current_price,
+                ai_output['target_price'], ai_output['signal'],
+                ai_output['time_horizon'], ai_output['mae']
             ))
             conn.commit()
-
-    def get_performance_data(self):
-        """Returns data for the 'Application of Metrics' deliverable."""
-        with self._connect() as conn:
-            return pd.read_sql_query("SELECT * FROM prediction_logs", conn)

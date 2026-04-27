@@ -7,7 +7,7 @@ def main():
     advisor = InvestmentAdvisor(risk_profile="Aggressive")
     
     # 2. Εκτέλεση ανάλυσης για το Bitcoin
-    symbol = "bitcoin"
+    symbol = "ethereum"
     print(f"Εκκίνηση ανάλυσης για: {symbol}...")
     
     result = advisor.generate_advice(symbol)
