@@ -1,1 +1,1 @@
-from .dashboard import ProfessionalDashboard
+from .dashboard import DashBoardUI
