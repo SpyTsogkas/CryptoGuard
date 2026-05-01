@@ -1,299 +1,342 @@
+import sys
 import os
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QComboBox, QLabel, QTextEdit, QFrame, 
-                             QGraphicsDropShadowEffect, QLineEdit, QMessageBox)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QColor, QIcon, QStandardItemModel, QStandardItem, QCursor
-from core.investment_advisor import InvestmentAdvisor
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+                             QLineEdit, QPushButton, QComboBox, QGraphicsDropShadowEffect,
+                             QFrame, QGridLayout, QProgressBar)
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QThread, pyqtSignal, QPoint
+from PyQt6.QtGui import QFont, QColor, QCursor, QPixmap
 
-# --- LOGIN SCREEN (Authentication & Registration UI) ---
-class LoginScreen(QWidget):
-    def __init__(self, db, on_success):
+from core import InvestmentAdvisor 
+
+# --- ΧΡΩΜΑΤΙΚΗ ΠΑΛΕΤΑ ---
+BG_COLOR = "#0B132B"
+CARD_COLOR = "#14213D"
+ACCENT_COLOR = "#00E5FF"
+TEXT_COLOR = "#FFFFFF"
+MUTED_TEXT = "#8D99AE"
+
+class ModernButton(QPushButton):
+    """Επαγγελματικό κουμπί με ομαλό Hover Effect"""
+    def __init__(self, text, primary=True):
+        super().__init__(text)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setMinimumHeight(45)
+        self.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        
+        bg = ACCENT_COLOR if primary else "transparent"
+        text_color = "#000000" if primary else TEXT_COLOR
+        border = f"none" if primary else f"2px solid {ACCENT_COLOR}"
+        hover_bg = "#00C2D8" if primary else "rgba(0, 229, 255, 0.1)"
+
+        self.setStyleSheet(f"""
+            QPushButton {{ background-color: {bg}; color: {text_color}; border-radius: 8px; border: {border}; }}
+            QPushButton:hover {{ background-color: {hover_bg}; }}
+            QPushButton:pressed {{ background-color: #00A3B5; }}
+        """)
+
+class ModernInput(QLineEdit):
+    """Επαγγελματικό πεδίο εισαγωγής"""
+    def __init__(self, placeholder, is_password=False):
         super().__init__()
-        self.db = db
-        self.on_success = on_success
-        self.init_ui()
+        self.setPlaceholderText(placeholder)
+        self.setMinimumHeight(45)
+        self.setFont(QFont("Segoe UI", 11))
+        if is_password:
+            self.setEchoMode(QLineEdit.EchoMode.Password)
+            
+        self.setStyleSheet(f"""
+            QLineEdit {{ background-color: #1E2D4A; color: {TEXT_COLOR}; border: 1px solid #2C3E5D; border-radius: 8px; padding-left: 15px; }}
+            QLineEdit:focus {{ border: 2px solid {ACCENT_COLOR}; }}
+        """)
 
-    def init_ui(self):
-        # Set dark base theme for the login window
-        self.setStyleSheet("background-color: #0b0e14;")
+class AuthScreen(QWidget):
+    """Η οθόνη Σύνδεσης / Εγγραφής"""
+    def __init__(self, db_manager, success_callback):
+        super().__init__()
+        self.db = db_manager
+        self.on_success = success_callback
+        self.setStyleSheet(f"background-color: {BG_COLOR};")
+        
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+        layout.setContentsMargins(50, 50, 50, 50)
 
-        # App Branding Logo
-        logo = QLabel("🛡️ CryptoGuard")
-        logo.setStyleSheet("font-size: 32px; font-weight: 900; color: #f0b90b; margin-bottom: 30px;")
-        layout.addWidget(logo)
-
-        # Username Input Field
-        self.user_in = QLineEdit()
-        self.user_in.setPlaceholderText("Username")
-        self.user_in.setFixedWidth(300)
-        self.user_in.setStyleSheet("padding: 12px; background: #1e2329; border: 1px solid #2b3139; border-radius: 5px; color: white;")
-        layout.addWidget(self.user_in)
-
-        # Password Input Field
-        self.pass_in = QLineEdit()
-        self.pass_in.setPlaceholderText("Password")
-        self.pass_in.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pass_in.setFixedWidth(300)
-        self.pass_in.setStyleSheet("padding: 12px; background: #1e2329; border: 1px solid #2b3139; border-radius: 5px; color: white;")
-        layout.addWidget(self.pass_in)
-
-        # Horizontal layout for the two buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
-
-        # Sign In Button
-        self.login_btn = QPushButton("SIGN IN")
-        self.login_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-        self.login_btn.setFixedWidth(145)
-        self.login_btn.setStyleSheet("background: #f0b90b; color: black; font-weight: bold; padding: 12px; border-radius: 5px;")
-        self.login_btn.clicked.connect(self.do_login)
-
-        # Register Button
-        self.reg_btn = QPushButton("REGISTER")
-        self.reg_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-        self.reg_btn.setFixedWidth(145)
-        self.reg_btn.setStyleSheet("background: transparent; color: #f0b90b; border: 2px solid #f0b90b; font-weight: bold; padding: 10px; border-radius: 5px;")
-        self.reg_btn.clicked.connect(self.handle_register)
-
-        btn_layout.addWidget(self.login_btn)
-        btn_layout.addWidget(self.reg_btn)
+        self.logo_label = QLabel("🛡️ CryptoGuard")
+        self.logo_label.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
+        self.logo_label.setStyleSheet(f"color: {TEXT_COLOR};")
+        self.logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.logo_label)
         
-        layout.addLayout(btn_layout)
-        
-        # Footer label
-        footer = QLabel("Secure Algorithmic Trading Environment")
-        footer.setStyleSheet("color: #474d57; font-size: 10px; margin-top: 20px;")
-        layout.addWidget(footer, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.sub_label = QLabel("Secure AI Trading Predictions")
+        self.sub_label.setFont(QFont("Segoe UI", 10))
+        self.sub_label.setStyleSheet(f"color: {ACCENT_COLOR}; margin-bottom: 20px;")
+        self.sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.sub_label)
 
-    def do_login(self):
-        """Validates credentials and moves to the dashboard"""
-        username = self.user_in.text()
-        password = self.pass_in.text()
+        self.username_input = ModernInput("Username")
+        self.password_input = ModernInput("Password", is_password=True)
         
-        if not username or not password:
-            QMessageBox.warning(self, "Input Error", "All fields are required for Login.")
-            return
+        self.risk_combo = QComboBox()
+        self.risk_combo.addItems(["Conservative", "Moderate", "Aggressive"])
+        self.risk_combo.setMinimumHeight(45)
+        self.risk_combo.setStyleSheet(f"""
+            QComboBox {{ background-color: #1E2D4A; color: {TEXT_COLOR}; border-radius: 8px; padding-left: 15px; border: 1px solid #2C3E5D; }}
+            QComboBox::drop-down {{ border: none; }}
+        """)
 
-        # DB Authentication
-        risk_profile = self.db.authenticate_user(username, password)
+        layout.addWidget(self.username_input)
+        layout.addWidget(self.password_input)
+        layout.addWidget(QLabel("Select Risk Profile (For Registration):", styleSheet=f"color: {MUTED_TEXT};"))
+        layout.addWidget(self.risk_combo)
+
+        self.login_btn = ModernButton("Login")
+        self.register_btn = ModernButton("Register", primary=False)
+        self.login_btn.clicked.connect(self.handle_login)
+        self.register_btn.clicked.connect(self.handle_register)
+
+        layout.addWidget(self.login_btn)
+        layout.addWidget(self.register_btn)
         
-        if risk_profile:
-            print(f"[AUTH] User {username} logged in.")
-            self.on_success(username, risk_profile)
+        self.msg_label = QLabel("")
+        self.msg_label.setStyleSheet("color: #FF5555;")
+        self.msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.msg_label)
+
+    def handle_login(self):
+        user = self.username_input.text()
+        pwd = self.password_input.text()
+        risk = self.db.authenticate_user(user, pwd)
+        if risk:
+            self.on_success(user, risk)
         else:
-            QMessageBox.warning(self, "Access Denied", "Invalid username or password.")
+            self.msg_label.setText("Invalid credentials!")
+            self.shake_window()
 
     def handle_register(self):
-        """Creates a new user record in the database"""
-        username = self.user_in.text()
-        password = self.pass_in.text()
-        
-        if len(username) < 3 or len(password) < 4:
-            QMessageBox.warning(self, "Validation", "Username must be > 3 and Password > 4 chars.")
+        user = self.username_input.text()
+        pwd = self.password_input.text()
+        risk = self.risk_combo.currentText()
+        if not user or not pwd:
+            self.msg_label.setText("Fields cannot be empty!")
             return
-
-        # Attempt to write to DB
-        success = self.db.register_user(username, password, risk="Moderate")
-        
+        success = self.db.register_user(user, pwd, risk)
         if success:
-            QMessageBox.information(self, "Success", f"Account created for {username}!\nYou can now Sign In.")
+            self.msg_label.setStyleSheet(f"color: {ACCENT_COLOR};")
+            self.msg_label.setText("Registered! You can now login.")
         else:
-            QMessageBox.critical(self, "Error", "Username already exists in the database.")
+            self.msg_label.setStyleSheet("color: #FF5555;")
+            self.msg_label.setText("Username already exists!")
 
-# --- THE MAIN DASHBOARD ---
-class DashBoardUI(QMainWindow):
+    def shake_window(self):
+        self.anim = QPropertyAnimation(self, b"pos")
+        self.anim.setDuration(400)
+        self.anim.setEasingCurve(QEasingCurve.Type.OutBounce)
+        start_pos = self.pos()
+        self.anim.setKeyValueAt(0, start_pos)
+        self.anim.setKeyValueAt(0.25, start_pos + QPoint(-10, 0))
+        self.anim.setKeyValueAt(0.75, start_pos + QPoint(10, 0))
+        self.anim.setKeyValueAt(1, start_pos)
+        self.anim.start()
+
+
+class CryptoButton(QPushButton):
+    """Ειδικό κουμπί για την επιλογή των Cryptos με εικονίδιο"""
+    def __init__(self, name, symbol, icon_path):
+        super().__init__()
+        self.symbol = symbol
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setFixedSize(130, 110)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        icon_label = QLabel()
+        if os.path.exists(icon_path):
+            pixmap = QPixmap(icon_path).scaled(45, 45, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            icon_label.setPixmap(pixmap)
+        else:
+            icon_label.setText("🪙") # Fallback αν σβηστεί η εικόνα
+            icon_label.setFont(QFont("Segoe UI", 24))
+            
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        text_label = QLabel(name)
+        text_label.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        layout.addWidget(icon_label)
+        layout.addWidget(text_label)
+
+        self.setStyleSheet(f"""
+            QPushButton {{ background-color: {CARD_COLOR}; color: {TEXT_COLOR}; border-radius: 12px; border: 2px solid transparent; }}
+            QPushButton:hover {{ border: 2px solid {ACCENT_COLOR}; background-color: #1E2D4A; }}
+            QPushButton:pressed {{ background-color: #0B132B; }}
+        """)
+
+
+class AnalysisWorker(QThread):
+    """Worker Thread για να μην παγώνει το UI κατά την ανάλυση"""
+    finished = pyqtSignal(dict)
+    def __init__(self, symbol, risk_profile):
+        super().__init__()
+        self.symbol = symbol
+        self.risk_profile = risk_profile
+        
+    def run(self):
+        try:
+            advisor = InvestmentAdvisor(risk_profile=self.risk_profile)
+            result = advisor.generate_advice(self.symbol)
+            self.finished.emit(result)
+        except Exception as e:
+            self.finished.emit({"error": str(e)})
+
+
+class DashBoardUI(QWidget):
+    """Το κεντρικό ταμπλό της εφαρμογής"""
     def __init__(self, username, risk_level):
         super().__init__()
-        self.setWindowTitle(f"CryptoGuard Terminal - {username}")
-        self.setMinimumSize(1200, 850)
-        
-        # Core data initialization
-        self.advisor = InvestmentAdvisor(risk_profile=risk_level)
-        self.current_theme = "dark"
-        self.assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets images')
-        
-        self.coin_data = {
-            "bitcoin": ("BITCOIN", "Bitcoin.png"),
-            "ethereum": ("ETHEREUM", "Ethereum.png"),
-            "solana": ("SOLANA", "Solana.png"),
-            "binancecoin": ("BNB", "Binance-Coin.png"),
-            "cardano": ("CARDANO", "Cardano.png")
-        }
-
+        self.username = username
+        self.risk_level = risk_level
+        self.setStyleSheet(f"background-color: {BG_COLOR};")
         self.init_ui()
-        self.apply_theme()
-
-    def create_shadow(self):
-        """Creates professional depth effects for UI elements"""
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setXOffset(0)
-        shadow.setYOffset(10)
-        shadow.setColor(QColor(0, 0, 0, 80))
-        return shadow
 
     def init_ui(self):
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.main_layout = QHBoxLayout(self.central_widget)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
-
-        # Sidebar
-        self.sidebar = QFrame()
-        self.sidebar.setObjectName("sidebar")
-        self.sidebar.setFixedWidth(260)
-        s_layout = QVBoxLayout(self.sidebar)
-        s_layout.setContentsMargins(20, 40, 20, 40)
-
-        logo = QLabel("🛡️ CryptoGuard")
-        logo.setStyleSheet("font-size: 22px; font-weight: 900; color: #f0b90b; margin-bottom: 30px;")
-        s_layout.addWidget(logo)
-
-        for item in ["📊 Dashboard", "💹 Markets", "💼 Portfolio"]:
-            btn = QPushButton(item)
-            btn.setObjectName("navBtn")
-            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-            s_layout.addWidget(btn)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(40, 40, 40, 40)
         
-        s_layout.addStretch()
-        self.main_layout.addWidget(self.sidebar)
-
-        # Dashboard Workspace
-        self.container = QWidget()
-        self.container.setObjectName("mainView")
-        layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(40, 30, 40, 40)
-
-        # Header Section
-        header = QHBoxLayout()
-        title = QLabel("Algorithmic Risk Terminal")
-        title.setStyleSheet("font-size: 28px; font-weight: 800; color: white;")
+        # Header
+        header_layout = QHBoxLayout()
+        title = QLabel("🛡️ CryptoGuard AI Engine")
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {TEXT_COLOR};")
         
-        self.theme_btn = QPushButton("🌓 LIGHT MODE")
-        self.theme_btn.setObjectName("themeBtnTop")
-        self.theme_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-        self.theme_btn.setFixedSize(150, 40)
-        self.theme_btn.clicked.connect(self.toggle_theme)
-
-        header.addWidget(title)
-        header.addStretch()
-        header.addWidget(self.theme_btn)
-        layout.addLayout(header)
-
-        # Control Card (Asset selection)
-        self.ctrl_card = QFrame()
-        self.ctrl_card.setObjectName("card")
-        self.ctrl_card.setGraphicsEffect(self.create_shadow())
-        ctrl_lay = QHBoxLayout(self.ctrl_card)
-        ctrl_lay.setContentsMargins(25, 25, 25, 25)
-
-        v_asset = QVBoxLayout()
-        v_asset.addWidget(QLabel("SELECT ASSET"))
-        self.coin_box = QComboBox()
-        self.coin_box.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-        self.coin_box.setIconSize(QSize(24, 24))
+        user_info = QLabel(f"👤 {self.username.upper()} | Risk: {self.risk_level}")
+        user_info.setFont(QFont("Segoe UI", 12))
+        user_info.setStyleSheet(f"color: {ACCENT_COLOR};")
         
-        model = QStandardItemModel()
-        for api_id, (name, icon_file) in self.coin_data.items():
-            item = QStandardItem(name)
-            item.setData(api_id, Qt.ItemDataRole.UserRole)
-            icon_path = os.path.join(self.assets_path, icon_file)
-            if os.path.exists(icon_path): item.setIcon(QIcon(icon_path))
-            model.appendRow(item)
-        self.coin_box.setModel(model)
-        v_asset.addWidget(self.coin_box)
-
-        self.btn_run = QPushButton("⚡ RUN ANALYSIS")
-        self.btn_run.setObjectName("runBtn")
-        self.btn_run.setCursor(QCursor(Qt.CursorShape.PointingHandCursor)) # Hover cursor
-        self.btn_run.clicked.connect(self.start_analysis)
+        header_layout.addWidget(title)
+        header_layout.addStretch()
+        header_layout.addWidget(user_info)
+        main_layout.addLayout(header_layout)
         
-        ctrl_lay.addLayout(v_asset)
-        ctrl_lay.addStretch()
-        ctrl_lay.addWidget(self.btn_run)
-        layout.addWidget(self.ctrl_card)
+        # Visual Crypto Selector (Με τα σωστά paths)
+        selection_label = QLabel("⚡ Επιλέξτε Asset για Ανάλυση:")
+        selection_label.setStyleSheet(f"color: {MUTED_TEXT}; font-size: 14px; font-weight: bold;")
+        main_layout.addWidget(selection_label)
 
-        # Display Section
-        res_row = QHBoxLayout()
+        crypto_layout = QHBoxLayout()
+        crypto_layout.setSpacing(15)
         
-        self.adv_card = QFrame()
-        self.adv_card.setObjectName("card")
-        self.adv_card.setGraphicsEffect(self.create_shadow())
-        adv_lay = QVBoxLayout(self.adv_card)
-        adv_lay.addWidget(QLabel("💡 AI GENERATED ADVICE"))
-        self.advice_display = QTextEdit()
-        self.advice_display.setReadOnly(True)
-        adv_lay.addWidget(self.advice_display)
+        self.assets = [
+            {"name": "Bitcoin", "symbol": "bitcoin", "icon": "assets images/Bitcoin.png"},
+            {"name": "Ethereum", "symbol": "ethereum", "icon": "assets images/Ethereum.png"},
+            {"name": "Solana", "symbol": "solana", "icon": "assets images/Solana.png"},
+            {"name": "Cardano", "symbol": "cardano", "icon": "assets images/Cardano.png"},
+            {"name": "BNB", "symbol": "binancecoin", "icon": "assets images/Binance-Coin.png"}
+        ]
+
+        for asset in self.assets:
+            btn = CryptoButton(asset["name"], asset["symbol"], asset["icon"])
+            btn.clicked.connect(lambda checked, s=asset["symbol"]: self.start_analysis(s))
+            crypto_layout.addWidget(btn)
+            
+        crypto_layout.addStretch()
+        main_layout.addLayout(crypto_layout)
         
-        self.stats_card = QFrame()
-        self.stats_card.setObjectName("card")
-        self.stats_card.setGraphicsEffect(self.create_shadow())
-        st_lay = QVBoxLayout(self.stats_card)
-        st_lay.addWidget(QLabel("LIVE MARKET STATUS"))
-        self.price_label = QLabel("$ --")
-        self.price_label.setObjectName("bigPrice")
-        st_lay.addWidget(self.price_label)
-        self.change_label = QLabel("Syncing...")
-        self.change_label.setObjectName("changeText")
-        st_lay.addWidget(self.change_label)
-        st_lay.addStretch()
-
-        res_row.addWidget(self.adv_card, 2)
-        res_row.addWidget(self.stats_card, 1)
-        layout.addLayout(res_row)
-        self.main_layout.addWidget(self.container)
-
-    def toggle_theme(self):
-        """Toggles between Dark and Light color palettes"""
-        self.current_theme = "light" if self.current_theme == "dark" else "dark"
-        self.theme_btn.setText("🌓 DARK MODE" if self.current_theme == "light" else "🌓 LIGHT MODE")
-        self.apply_theme()
-
-    def start_analysis(self):
-        """Executes AI logic and updates labels with live data"""
-        symbol = self.coin_box.currentData(Qt.ItemDataRole.UserRole)
-        data = self.advisor.generate_advice(symbol)
+        # Progress Bar
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.setStyleSheet(f"QProgressBar {{ background: #1E2D4A; border: none; height: 4px; }} QProgressBar::chunk {{ background-color: {ACCENT_COLOR}; }}")
+        self.progress.hide()
+        main_layout.addWidget(self.progress)
         
-        self.price_label.setText(f"${data['current_price']:,}")
-        self.advice_display.setText(data['advice'])
-        pct = data['price_change_pct']
-        self.change_label.setText(f"{'+' if pct > 0 else ''}{pct}% (24h)")
+        # Results Frame
+        self.results_frame = QFrame()
+        self.results_frame.setStyleSheet(f"background-color: {CARD_COLOR}; border-radius: 15px;")
+        self.results_layout = QGridLayout(self.results_frame)
+        self.results_layout.setContentsMargins(30, 30, 30, 30)
         
-        # Color coding based on market performance
-        color = '#27ae60' if pct >= 0 else '#e74c3c'
-        self.change_label.setStyleSheet(f"color: {color}; font-size: 18px; font-weight: 900;")
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 150))
+        shadow.setOffset(0, 5)
+        self.results_frame.setGraphicsEffect(shadow)
 
-    def apply_theme(self):
-        """Global CSS definitions for application styling"""
-        if self.current_theme == "dark":
-            style = """
-                QMainWindow { background-color: #0b0e14; }
-                #sidebar { background-color: #12151c; border-right: 1px solid #1e222d; }
-                #navBtn { color: #848e9c; text-align: left; padding: 15px; border: none; font-weight: bold; border-radius: 8px; }
-                #navBtn:hover { background-color: #2b3139; color: white; }
-                #card { background-color: #1e2329; border-radius: 15px; border: 1px solid #2b3139; }
-                #runBtn { background-color: #f0b90b; color: black; border-radius: 10px; padding: 15px; font-weight: 900; }
-                #runBtn:hover { background-color: #fcd535; }
-                #bigPrice { color: white; font-size: 42px; font-weight: 900; }
-                QComboBox { background-color: #2b3139; color: white; border-radius: 8px; padding: 8px; border: 1px solid #474d57; font-weight: bold; }
-                QTextEdit { background: transparent; color: white; border: none; font-size: 15px; }
-                QLabel { color: #848e9c; font-weight: bold; }
-            """
-        else:
-            style = """
-                QMainWindow { background-color: #f0f2f5; }
-                #sidebar { background-color: #ffffff; border-right: 1px solid #dcdfe4; }
-                #navBtn { color: #474d57; text-align: left; padding: 15px; border: none; font-weight: bold; border-radius: 8px; }
-                #navBtn:hover { background-color: #f0f2f5; }
-                #card { background-color: #ffffff; border-radius: 15px; border: 1px solid #e0e3e7; }
-                #runBtn { background-color: #f0b90b; color: black; border-radius: 10px; padding: 15px; font-weight: 900; }
-                #bigPrice { color: #1e2329; font-size: 42px; font-weight: 900; }
-                QComboBox { background-color: #ffffff; color: #1e2329; border: 1px solid #cfd3d8; padding: 8px; border-radius: 8px; }
-                QTextEdit { background: transparent; color: #1e2329; border: none; }
-                QLabel { color: #474d57; font-weight: bold; }
-            """
-        self.setStyleSheet(style)
+        self.lbl_current = self.create_stat_label("Current Price", "$0.00")
+        self.lbl_target = self.create_stat_label("AI Target Price", "$0.00")
+        self.lbl_change = self.create_stat_label("Est. Change", "0.00%")
+        self.lbl_signal = self.create_stat_label("Trading Signal", "WAITING")
+        self.lbl_horizon = self.create_stat_label("Time Horizon", "-")
+        self.lbl_mae = self.create_stat_label("AI Error Margin", "$0.00")
+
+        self.results_layout.addLayout(self.lbl_current, 0, 0)
+        self.results_layout.addLayout(self.lbl_target, 0, 1)
+        self.results_layout.addLayout(self.lbl_change, 0, 2)
+        self.results_layout.addLayout(self.lbl_signal, 1, 0)
+        self.results_layout.addLayout(self.lbl_horizon, 1, 1)
+        self.results_layout.addLayout(self.lbl_mae, 1, 2)
+        
+        main_layout.addWidget(self.results_frame)
+
+        # Advice Label
+        self.advice_label = QLabel("Επιλέξτε ένα νόμισμα από πάνω για να ξεκινήσει η ανάλυση της αγοράς.")
+        self.advice_label.setWordWrap(True)
+        self.advice_label.setFont(QFont("Segoe UI", 12))
+        self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {ACCENT_COLOR};")
+        main_layout.addWidget(self.advice_label)
+
+    def create_stat_label(self, title, value):
+        layout = QVBoxLayout()
+        title_lbl = QLabel(title)
+        title_lbl.setStyleSheet(f"color: {MUTED_TEXT}; font-size: 13px; font-weight: bold;")
+        val_lbl = QLabel(value)
+        val_lbl.setStyleSheet(f"color: {TEXT_COLOR}; font-size: 24px; font-weight: bold;")
+        layout.addWidget(title_lbl)
+        layout.addWidget(val_lbl)
+        return layout
+
+    def update_stat_value(self, layout, text, color=TEXT_COLOR):
+        lbl = layout.itemAt(1).widget()
+        lbl.setText(text)
+        lbl.setStyleSheet(f"color: {color}; font-size: 24px; font-weight: bold;")
+
+    def start_analysis(self, symbol):
+        for btn in self.findChildren(CryptoButton):
+            btn.setEnabled(False)
+            
+        self.progress.show()
+        self.advice_label.setText(f"📡 Ανάκτηση δεδομένων & εκπαίδευση Quant AI για {symbol.upper()}... Παρακαλώ περιμένετε.")
+        self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {ACCENT_COLOR};")
+        
+        self.worker = AnalysisWorker(symbol, self.risk_level)
+        self.worker.finished.connect(self.on_analysis_complete)
+        self.worker.start()
+
+    def on_analysis_complete(self, result):
+        for btn in self.findChildren(CryptoButton):
+            btn.setEnabled(True)
+            
+        self.progress.hide()
+        
+        if "error" in result:
+            self.advice_label.setText(f"❌ Υπήρξε Σφάλμα: {result['error']}")
+            self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: #FF5555; padding: 25px; border-radius: 15px; border-left: 5px solid #FF5555;")
+            return
+
+        curr = f"${result['current_price']:,.2f}"
+        targ = f"${result['prediction']['target_price']:,.2f}"
+        pct = result['price_change_pct']
+        change_str = f"{'+' if pct > 0 else ''}{pct:.2f}%"
+        change_color = "#00FF7F" if pct > 0 else "#FF5555"
+
+        self.update_stat_value(self.lbl_current, curr)
+        self.update_stat_value(self.lbl_target, targ, change_color)
+        self.update_stat_value(self.lbl_change, change_str, change_color)
+        self.update_stat_value(self.lbl_signal, result['prediction']['signal'], ACCENT_COLOR)
+        self.update_stat_value(self.lbl_horizon, result['time_limit'])
+        self.update_stat_value(self.lbl_mae, f"${result['error_margin']:,.2f}")
+
+        self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
+        self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
