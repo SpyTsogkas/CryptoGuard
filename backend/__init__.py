@@ -1,4 +1,1 @@
-class DataFetcher:
-    def get_data(self, symbol):
-        # WAITING FOR API CALL
-        return None
+from .data_fetcher import DataFetcher
