@@ -17,8 +17,8 @@ class TrendPredictor:
         self.horizons = {
             "1 Ημέρα (24h)": 1,
             "1 Εβδομάδα": 7,
+            "2 Εβδομάδες": 14,
             "1 Μήνας": 30,
-            "1 Έτος": 365
         }
         
         # Create an AI model and a Scaler for each time horizon
