@@ -1,11 +1,12 @@
 import sys
 import os
+import requests
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QComboBox, QGraphicsDropShadowEffect,
                              QFrame, QGridLayout, QProgressBar)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QThread, pyqtSignal, QPoint
 from PyQt6.QtGui import QFont, QColor, QCursor, QPixmap
-
+from backend import DataFetcher
 from core import InvestmentAdvisor 
 
 # --- ΧΡΩΜΑΤΙΚΗ ΠΑΛΕΤΑ ---
@@ -146,7 +147,7 @@ class CryptoButton(QPushButton):
         super().__init__()
         self.symbol = symbol
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.setFixedSize(130, 110)
+        self.setFixedSize(130, 130)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -199,7 +200,57 @@ class DashBoardUI(QWidget):
         self.username = username
         self.risk_level = risk_level
         self.setStyleSheet(f"background-color: {BG_COLOR};")
+        self.assets = self._fetch_top10_assets()  # ← εδώ, ΠΡΙΝ το init_ui
         self.init_ui()
+
+    def _fetch_top10_assets(self):
+        """Κατεβάζει δυναμικά τα Top 10 coins με ονόματα και logos από το CoinGecko."""
+        try:
+            fetcher = DataFetcher()
+            endpoint = f"{fetcher.base_url}/coins/markets"
+            params = {
+                'vs_currency': 'usd',
+                'order': 'volume_desc',
+                'per_page': 10,
+                'page': 1
+            }
+            response = requests.get(endpoint, params=params, headers=fetcher.get_headers())
+            response.raise_for_status()
+            coins = response.json()
+
+            assets = []
+            os.makedirs("assets images/cache", exist_ok=True)
+
+            for coin in coins:
+                coin_id = coin['id']
+                name = coin['name']
+                image_url = coin.get('image', '')
+                icon_path = f"assets images/cache/{coin_id}.png"
+
+                if not os.path.exists(icon_path) and image_url:
+                    try:
+                        img_data = requests.get(image_url, timeout=5).content
+                        with open(icon_path, 'wb') as f:
+                            f.write(img_data)
+                    except Exception:
+                        icon_path = ""
+
+                assets.append({
+                    "name": name,
+                    "symbol": coin_id,
+                    "icon": icon_path
+                })
+
+            return assets
+
+        except Exception as e:
+            return [
+                {"name": "Bitcoin",  "symbol": "bitcoin",     "icon": "assets images/Bitcoin.png"},
+                {"name": "Ethereum", "symbol": "ethereum",    "icon": "assets images/Ethereum.png"},
+                {"name": "Solana",   "symbol": "solana",      "icon": "assets images/Solana.png"},
+                {"name": "Cardano",  "symbol": "cardano",     "icon": "assets images/Cardano.png"},
+                {"name": "BNB",      "symbol": "binancecoin", "icon": "assets images/Binance-Coin.png"}
+            ]
 
     def init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -225,24 +276,17 @@ class DashBoardUI(QWidget):
         selection_label.setStyleSheet(f"color: {MUTED_TEXT}; font-size: 14px; font-weight: bold;")
         main_layout.addWidget(selection_label)
 
-        crypto_layout = QHBoxLayout()
-        crypto_layout.setSpacing(15)
-        
-        self.assets = [
-            {"name": "Bitcoin", "symbol": "bitcoin", "icon": "assets images/Bitcoin.png"},
-            {"name": "Ethereum", "symbol": "ethereum", "icon": "assets images/Ethereum.png"},
-            {"name": "Solana", "symbol": "solana", "icon": "assets images/Solana.png"},
-            {"name": "Cardano", "symbol": "cardano", "icon": "assets images/Cardano.png"},
-            {"name": "BNB", "symbol": "binancecoin", "icon": "assets images/Binance-Coin.png"}
-        ]
+        crypto_grid = QGridLayout()
+        crypto_grid.setSpacing(15)
 
-        for asset in self.assets:
+        for i, asset in enumerate(self.assets):
             btn = CryptoButton(asset["name"], asset["symbol"], asset["icon"])
             btn.clicked.connect(lambda checked, s=asset["symbol"]: self.start_analysis(s))
-            crypto_layout.addWidget(btn)
-            
-        crypto_layout.addStretch()
-        main_layout.addLayout(crypto_layout)
+            row = i // 5      # 0 για τα πρώτα 5, 1 για τα επόμενα 5
+            col = i % 5       # στήλη 0-4
+            crypto_grid.addWidget(btn, row, col)
+
+        main_layout.addLayout(crypto_grid)
         
         # Progress Bar
         self.progress = QProgressBar()
@@ -340,3 +384,4 @@ class DashBoardUI(QWidget):
 
         self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
         self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
+        self.advice_label.setMinimumHeight(180)
