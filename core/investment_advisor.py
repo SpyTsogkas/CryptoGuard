@@ -21,7 +21,7 @@ class InvestmentAdvisor:
         Organizes the application flow: Data -> AI -> DB -> Advice.
         """
         # 1. Download Data from the API
-        df = self.fetcher.get_data(symbol, days='90') # Make sure days='365' is set in fetcher
+        df = self.fetcher.get_data(symbol, days='365') # Make sure days='365' is set in fetcher
         if df.empty:
             return {"error": "Αδυναμία λήψης δεδομένων από το API."}
 
