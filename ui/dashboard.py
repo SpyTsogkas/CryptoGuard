@@ -3,7 +3,7 @@ import os
 import requests
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QPushButton, QComboBox, QGraphicsDropShadowEffect,
-                             QFrame, QGridLayout, QProgressBar)
+                             QFrame, QGridLayout, QProgressBar, QScrollArea)
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QThread, pyqtSignal, QPoint
 from PyQt6.QtGui import QFont, QColor, QCursor, QPixmap
 from backend import DataFetcher
@@ -324,12 +324,46 @@ class DashBoardUI(QWidget):
         
         main_layout.addWidget(self.results_frame)
 
-        # Advice Label
+       # --- Δημιουργία Scroll Area για τη Συμβουλή ---
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #1E2D4A;
+                width: 10px;
+                margin: 0px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background: #00E5FF;
+                min-height: 20px;
+                border-radius: 5px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+
+        # Δημιουργία του Advice Label
         self.advice_label = QLabel("Επιλέξτε ένα νόμισμα από πάνω για να ξεκινήσει η ανάλυση της αγοράς.")
         self.advice_label.setWordWrap(True)
         self.advice_label.setFont(QFont("Segoe UI", 12))
+        # Αφαιρούμε το padding από το QLabel γιατί θα το ελέγχει το ScrollArea
         self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {ACCENT_COLOR};")
-        main_layout.addWidget(self.advice_label)
+        self.advice_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Τοποθέτηση του label μέσα στο Scroll Area
+        self.scroll_area.setWidget(self.advice_label)
+        
+        # Ορίζουμε ένα μέγιστο ύψος ώστε να μην "κρύβει" τα logos σε μικρές οθόνες
+        self.scroll_area.setMaximumHeight(200) 
+        
+        main_layout.addWidget(self.scroll_area)
 
     def create_stat_label(self, title, value):
         layout = QVBoxLayout()
@@ -384,4 +418,7 @@ class DashBoardUI(QWidget):
 
         self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
         self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
-        self.advice_label.setMinimumHeight(180)
+        
+        self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
+        self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
+        #self.advice_label.setMinimumHeight(180)

@@ -51,7 +51,7 @@ class CryptoGuardRunner:
         self.window_stack.setCurrentWidget(self.main_ui)
         
         # Size fixed
-        self.window_stack.setFixedSize(1000, 900)
+        self.window_stack.setFixedSize(1000, 750)
         
         # Centering
         qr = self.window_stack.frameGeometry()
