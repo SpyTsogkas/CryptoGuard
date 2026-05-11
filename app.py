@@ -45,17 +45,27 @@ class CryptoGuardRunner:
         self.window_stack.show()
 
     def launch_main_ui(self, username, risk_level):
-        """Login --> Dashboard"""
+        """Login --> Dashboard με δυναμική προσαρμογή μεγέθους"""
         self.main_ui = DashBoardUI(username, risk_level)
         self.window_stack.addWidget(self.main_ui)
         self.window_stack.setCurrentWidget(self.main_ui)
         
-        # Size fixed
-        self.window_stack.setFixedSize(1000, 750)
+        # 1. ΑΦΑΙΡΟΥΜΕ ΤΟ setFixedSize(1000, 750)
+        # Αντ' αυτού, ορίζουμε ένα ελάχιστο μέγεθος για να μην "καταρρέουν" τα labels
+        self.window_stack.setMinimumSize(900, 700) 
         
-        # Centering
+        # Καταργούμε τον περιορισμό του σταθερού μεγέθους για να μπορεί το παράθυρο να μεγαλώνει
+        self.window_stack.setMaximumSize(16777215, 16777215) 
+
+        # 2. ΡΥΘΜΙΖΟΥΜΕ ΤΟ ΠΑΡΑΘΥΡΟ ΝΑ ΠΑΙΡΝΕΙ ΤΟ 90% ΤΗΣ ΔΙΑΘΕΣΙΜΗΣ ΟΘΟΝΗΣ
+        screen_geo = self.app.primaryScreen().availableGeometry()
+        width = int(screen_geo.width() * 0.9)
+        height = int(screen_geo.height() * 0.9)
+        self.window_stack.resize(width, height)
+        
+        # 3. ΚΕΝΤΡΑΡΙΣΜΑ (Προαιρετικά, μπορείς να χρησιμοποιήσεις και το self.window_stack.showMaximized())
         qr = self.window_stack.frameGeometry()
-        cp = self.app.primaryScreen().availableGeometry().center()
+        cp = screen_geo.center()
         qr.moveCenter(cp)
         self.window_stack.move(qr.topLeft())
 

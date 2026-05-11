@@ -419,6 +419,3 @@ class DashBoardUI(QWidget):
         self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
         self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
         
-        self.advice_label.setText(f"🤖 AI Recommendation:\n{result['advice']}")
-        self.advice_label.setStyleSheet(f"background-color: {CARD_COLOR}; color: {TEXT_COLOR}; padding: 25px; border-radius: 15px; border-left: 5px solid {change_color};")
-        #self.advice_label.setMinimumHeight(180)
